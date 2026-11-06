@@ -1,19 +1,17 @@
-# :earth_americas: GDP dashboard template
+# 수업나눔 교무실
 
-A simple Streamlit app showing the GDP of different countries in the world.
+학생과 선생님이 과목별 공부 방법과 수업 아이디어를 나누는 Streamlit 실습 앱입니다. 과목 나눔방에서 글을 작성하고 게시글을 확인할 수 있습니다.
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://gdp-dashboard-template.streamlit.app/)
+### 실행 방법
 
-### How to run it on your own machine
-
-1. Install the requirements
+1. 필요한 패키지를 설치합니다.
 
    ```
-   $ pip install -r requirements.txt
+   $ python -m pip install -r requirements.txt
    ```
 
-2. Run the app
+2. 앱을 실행합니다.
 
    ```
-   $ streamlit run streamlit_app.py
+   $ python -m streamlit run streamlit_app.py
    ```
