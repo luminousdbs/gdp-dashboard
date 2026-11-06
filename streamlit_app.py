@@ -31,10 +31,18 @@ st.markdown(
     }
     .stApp {
         color: var(--ink);
-        background-color: var(--paper);
-        background-image: repeating-linear-gradient(
-            0deg, transparent 0, transparent 35px, rgba(102, 137, 112, 0.045) 36px
-        );
+        background-color: #f5f3e8;
+        background-image:
+            repeating-linear-gradient(
+                0deg, transparent 0, transparent 39px, rgba(82, 123, 101, 0.055) 40px
+            ),
+            repeating-linear-gradient(
+                90deg, transparent 0, transparent 39px, rgba(82, 123, 101, 0.04) 40px
+            ),
+            linear-gradient(
+                125deg, #fff0cf 0%, #f2f2dc 30%, #e4f0e2 58%, #deedf2 80%, #f7e3d8 100%
+            );
+        background-attachment: fixed;
     }
     .block-container {
         max-width: 1080px;
@@ -90,6 +98,42 @@ st.markdown(
         color: var(--muted);
         font-size: 1rem;
         line-height: 1.7;
+    }
+    .room-stamp {
+        display: inline-block;
+        margin: 0.25rem 0 0.75rem;
+        padding: 0.35rem 0.7rem;
+        border: 1px solid;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 700;
+    }
+    .room-stamp.student {
+        border-color: #cfe0cc;
+        background: #edf5eb;
+        color: #42684e;
+    }
+    .room-stamp.teacher {
+        border-color: #ecd6c7;
+        background: #fff1e8;
+        color: #9a5c43;
+    }
+    [class*="st-key-room_student"] button {
+        border-color: #cfe0cc;
+        background: #edf5eb;
+        color: #42684e;
+        font-weight: 700;
+    }
+    [class*="st-key-room_teacher"] button {
+        border-color: #ecd6c7;
+        background: #fff1e8;
+        color: #9a5c43;
+        font-weight: 700;
+    }
+    [data-testid="stFileUploader"] section {
+        border: 1px dashed #a9bca9;
+        border-radius: 8px;
+        background: rgba(255, 254, 250, 0.72);
     }
     .subject-focus {
         min-height: 1.5rem;
@@ -167,13 +211,15 @@ if st.session_state.current_room is None:
 
     student_column, teacher_column = st.columns(2, gap="large")
     with student_column:
-        st.markdown("### 🎒 학생방")
+        st.markdown('<div class="room-stamp student">🎒 학생을 위한 공간</div>', unsafe_allow_html=True)
+        st.markdown("### 학생방")
         st.write("나만의 공부 방법과 과목별 학습 팁을 나누는 공간")
         if st.button("학생방 들어가기  →", key="room_student", use_container_width=True):
             st.session_state.current_room = "학생"
             st.rerun()
     with teacher_column:
-        st.markdown("### 🍎 선생님방")
+        st.markdown('<div class="room-stamp teacher">🍎 선생님을 위한 공간</div>', unsafe_allow_html=True)
+        st.markdown("### 선생님방")
         st.write("수업 아이디어와 교실에서 얻은 노하우를 나누는 공간")
         if st.button("선생님방 들어가기  →", key="room_teacher", use_container_width=True):
             st.session_state.current_room = "선생님"
@@ -224,6 +270,16 @@ else:
     )
 
     st.subheader(share_title)
+    upload_key = (
+        f'attachment_{room}_{subject["key"]}_'
+        f'{st.session_state.get("attachment_reset", 0)}'
+    )
+    uploaded_file = st.file_uploader(
+        "자료 첨부 (선택)",
+        type=["pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "csv", "txt", "png", "jpg", "jpeg"],
+        help="PDF, 문서, 발표 자료, 표, 이미지 파일을 첨부할 수 있어요. 파일당 최대 10MB입니다.",
+        key=upload_key,
+    )
     with st.form(f'post_form_{room}_{subject["key"]}', clear_on_submit=True):
         author = st.text_input(
             "이름 또는 별명",
@@ -240,17 +296,25 @@ else:
     if submitted:
         if not title.strip() or not content.strip():
             st.warning("제목과 내용을 입력해 주세요.")
+        elif uploaded_file is not None and uploaded_file.size > 10 * 1024 * 1024:
+            st.warning("첨부 파일은 10MB 이하로 선택해 주세요.")
         else:
-            st.session_state.posts[subject["key"]].insert(
-                0,
-                {
-                    "contributor_type": room,
-                    "author": author.strip() or "익명",
-                    "title": title.strip(),
-                    "content": content.strip(),
-                    "date": datetime.now().strftime("%Y.%m.%d"),
-                },
-            )
+            post = {
+                "contributor_type": room,
+                "author": author.strip() or "익명",
+                "title": title.strip(),
+                "content": content.strip(),
+                "date": datetime.now().strftime("%Y.%m.%d"),
+            }
+            if uploaded_file is not None:
+                post["attachment"] = {
+                    "name": uploaded_file.name,
+                    "type": uploaded_file.type or "application/octet-stream",
+                    "data": uploaded_file.getvalue(),
+                }
+            st.session_state.posts[subject["key"]].insert(0, post)
+            if uploaded_file is not None:
+                st.session_state.attachment_reset = st.session_state.get("attachment_reset", 0) + 1
             st.success("배움 이야기를 나눴어요.")
 
     st.divider()
@@ -271,10 +335,19 @@ else:
         )
         st.info(f"아직 나눈 이야기가 없어요. {empty_message}")
     else:
-        for post in visible_posts:
+        for index, post in enumerate(visible_posts):
             with st.container(border=True):
                 contributor = post.get("contributor_type", "선생님")
                 author_name = post.get("author", post.get("teacher", "익명"))
                 st.caption(f'{contributor}  ·  {author_name}  ·  {post["date"]}')
                 st.markdown(f'#### {post["title"]}')
                 st.write(post["content"])
+                attachment = post.get("attachment")
+                if attachment:
+                    st.download_button(
+                        f'📎 자료 다운로드 · {attachment["name"]}',
+                        data=attachment["data"],
+                        file_name=attachment["name"],
+                        mime=attachment["type"],
+                        key=f'download_{room}_{subject["key"]}_{index}',
+                    )
